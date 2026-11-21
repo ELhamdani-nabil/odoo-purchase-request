@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
+APPROVAL_THRESHOLD = 1000.0
+
 
 class PurchaseRequest(models.Model):
     _name = "purchase.request"
@@ -8,7 +10,8 @@ class PurchaseRequest(models.Model):
     _inherit = ["mail.thread", "mail.activity.mixin"]
     _order = "id desc"
 
-    name = fields.Char(default="Nouveau", readonly=True, copy=False)
+    name = fields.Char(
+        string="Référence", default="Nouveau", readonly=True, copy=False)
     requester_id = fields.Many2one(
         "res.users", string="Demandeur",
         default=lambda self: self.env.user, tracking=True)
@@ -24,7 +27,7 @@ class PurchaseRequest(models.Model):
         ("approved", "Approuvée"),
         ("rejected", "Refusée"),
         ("done", "Commande créée"),
-    ], default="draft", tracking=True)
+    ], string="Statut", default="draft", tracking=True)
     purchase_order_id = fields.Many2one(
         "purchase.order", string="Bon de commande", readonly=True, copy=False)
 
@@ -48,6 +51,13 @@ class PurchaseRequest(models.Model):
         self.write({"state": "to_approve"})
 
     def action_approve(self):
+        is_manager = self.env.user.has_group(
+            "purchase_request.group_purchase_request_manager")
+        for rec in self:
+            if rec.total > APPROVAL_THRESHOLD and not is_manager:
+                raise UserError(
+                    "Les demandes de plus de %s nécessitent l'approbation d'un manager."
+                    % APPROVAL_THRESHOLD)
         self.write({"state": "approved"})
 
     def action_reject(self):

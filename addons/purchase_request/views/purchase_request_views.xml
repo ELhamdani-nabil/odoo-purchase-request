@@ -23,11 +23,9 @@
                     <button name="action_submit" type="object" string="Soumettre"
                             class="btn-primary" invisible="state != 'draft'"/>
                     <button name="action_approve" type="object" string="Approuver"
-                            class="btn-primary" invisible="state != 'to_approve'"
-                            groups="purchase_request.group_purchase_request_manager"/>
+                            class="btn-primary" invisible="state != 'to_approve'"/>
                     <button name="action_reject" type="object" string="Refuser"
-                            invisible="state != 'to_approve'"
-                            groups="purchase_request.group_purchase_request_manager"/>
+                            invisible="state != 'to_approve'"/>
                     <button name="action_create_po" type="object"
                             string="Créer le bon de commande" class="btn-primary"
                             invisible="state != 'approved'"/>
