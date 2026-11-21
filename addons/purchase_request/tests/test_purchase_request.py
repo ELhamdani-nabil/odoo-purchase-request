@@ -3,6 +3,9 @@ from unittest.mock import patch
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 
+MANAGER_GROUP = "purchase_request.group_purchase_request_manager"
+DIRECTOR_GROUP = "purchase_request.group_purchase_request_director"
+
 
 class TestPurchaseRequest(TransactionCase):
 
@@ -14,6 +17,7 @@ class TestPurchaseRequest(TransactionCase):
             "name": "Test Product",
             "standard_price": 100.0,
         })
+        cls.users_model = type(cls.env["res.users"])
 
     def _make_request(self, qty=1.0, price=100.0):
         return self.env["purchase.request"].create({
@@ -72,14 +76,35 @@ class TestPurchaseRequest(TransactionCase):
             req.action_create_po()
 
     def test_large_amount_requires_manager(self):
-        req = self._make_request(qty=2, price=1000)
+        req = self._make_request(qty=2, price=1000)  # 2 000
         req.action_submit()
-        users_model = type(self.env["res.users"])
-        with patch.object(users_model, "has_group", return_value=False):
+        with patch.object(self.users_model, "has_group", return_value=False):
             with self.assertRaises(UserError):
                 req.action_approve()
-        # Un manager peut approuver
-        with patch.object(users_model, "has_group", return_value=True):
+        with patch.object(self.users_model, "has_group", return_value=True):
+            req.action_approve()
+        self.assertEqual(req.state, "approved")
+
+    def test_very_large_amount_requires_director(self):
+        req = self._make_request(qty=3, price=5000)  # 15 000
+        req.action_submit()
+        # Un simple manager ne suffit pas
+        with patch.object(
+                self.users_model, "has_group",
+                side_effect=lambda group: group == MANAGER_GROUP):
+            with self.assertRaises(UserError):
+                req.action_approve()
+        # La Direction peut approuver
+        with patch.object(self.users_model, "has_group", return_value=True):
+            req.action_approve()
+        self.assertEqual(req.state, "approved")
+
+    def test_manager_can_approve_mid_amount(self):
+        req = self._make_request(qty=2, price=1000)  # 2 000
+        req.action_submit()
+        with patch.object(
+                self.users_model, "has_group",
+                side_effect=lambda group: group == MANAGER_GROUP):
             req.action_approve()
         self.assertEqual(req.state, "approved")
 

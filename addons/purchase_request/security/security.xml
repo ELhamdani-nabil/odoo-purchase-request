@@ -8,9 +8,14 @@
         <field name="implied_ids" eval="[(4, ref('group_purchase_request_user'))]"/>
     </record>
 
-    <!-- L'administrateur devient automatiquement manager -->
-    <record id="base.group_system" model="res.groups">
+    <record id="group_purchase_request_director" model="res.groups">
+        <field name="name">Demande d'achat : Direction</field>
         <field name="implied_ids" eval="[(4, ref('group_purchase_request_manager'))]"/>
+    </record>
+
+    <!-- L'administrateur devient automatiquement Direction (donc Manager) -->
+    <record id="base.group_system" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_purchase_request_director'))]"/>
     </record>
 
     <!-- Un utilisateur ne voit que ses propres demandes -->
@@ -21,7 +26,7 @@
         <field name="groups" eval="[(4, ref('group_purchase_request_user'))]"/>
     </record>
 
-    <!-- Un manager voit toutes les demandes -->
+    <!-- Un manager (et la Direction) voit toutes les demandes -->
     <record id="rule_purchase_request_manager" model="ir.rule">
         <field name="name">Demande d'achat : toutes les demandes (manager)</field>
         <field name="model_id" ref="model_purchase_request"/>

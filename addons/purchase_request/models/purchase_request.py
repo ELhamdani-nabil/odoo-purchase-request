@@ -2,7 +2,9 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 
 APPROVAL_THRESHOLD = 1000.0
+DIRECTOR_THRESHOLD = 10000.0
 MANAGER_GROUP = "purchase_request.group_purchase_request_manager"
+DIRECTOR_GROUP = "purchase_request.group_purchase_request_director"
 
 
 class PurchaseRequest(models.Model):
@@ -45,15 +47,18 @@ class PurchaseRequest(models.Model):
         for rec in self:
             rec.total = sum(rec.line_ids.mapped("subtotal"))
 
-    def _notify_managers(self):
-        """Crée une activité « à faire » pour chaque manager."""
-        managers = self.env["res.users"].search([("share", "=", False)]).filtered(
-            lambda u: u.has_group(MANAGER_GROUP))
+    def _notify_approvers(self):
+        """Crée une activité « à faire » pour les approbateurs concernés :
+        la Direction au-delà de 10 000, les managers sinon."""
+        users = self.env["res.users"].search([("share", "=", False)])
         for rec in self:
-            for manager in managers - rec.requester_id:
+            group = (DIRECTOR_GROUP if rec.total > DIRECTOR_THRESHOLD
+                     else MANAGER_GROUP)
+            approvers = users.filtered(lambda u: u.has_group(group))
+            for approver in approvers - rec.requester_id:
                 rec.activity_schedule(
                     "mail.mail_activity_data_todo",
-                    user_id=manager.id,
+                    user_id=approver.id,
                     summary="Demande d'achat à approuver : %s" % rec.name,
                 )
 
@@ -62,15 +67,21 @@ class PurchaseRequest(models.Model):
             if not rec.line_ids:
                 raise UserError("Ajoutez au moins une ligne avant de soumettre.")
         self.write({"state": "to_approve"})
-        self._notify_managers()
+        self._notify_approvers()
 
     def action_approve(self):
-        is_manager = self.env.user.has_group(MANAGER_GROUP)
+        user = self.env.user
         for rec in self:
-            if rec.total > APPROVAL_THRESHOLD and not is_manager:
-                raise UserError(
-                    "Les demandes de plus de %s nécessitent l'approbation d'un manager."
-                    % APPROVAL_THRESHOLD)
+            if rec.total > DIRECTOR_THRESHOLD:
+                if not user.has_group(DIRECTOR_GROUP):
+                    raise UserError(
+                        "Les demandes de plus de %s nécessitent l'approbation "
+                        "de la Direction." % DIRECTOR_THRESHOLD)
+            elif rec.total > APPROVAL_THRESHOLD:
+                if not user.has_group(MANAGER_GROUP):
+                    raise UserError(
+                        "Les demandes de plus de %s nécessitent l'approbation "
+                        "d'un manager." % APPROVAL_THRESHOLD)
         self.write({"state": "approved"})
         self.activity_unlink(["mail.mail_activity_data_todo"])
 
