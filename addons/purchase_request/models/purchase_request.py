@@ -2,6 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 
 APPROVAL_THRESHOLD = 1000.0
+MANAGER_GROUP = "purchase_request.group_purchase_request_manager"
 
 
 class PurchaseRequest(models.Model):
@@ -44,24 +45,41 @@ class PurchaseRequest(models.Model):
         for rec in self:
             rec.total = sum(rec.line_ids.mapped("subtotal"))
 
+    def _notify_managers(self):
+        """Crée une activité « à faire » pour chaque manager."""
+        managers = self.env["res.users"].search([("share", "=", False)]).filtered(
+            lambda u: u.has_group(MANAGER_GROUP))
+        for rec in self:
+            for manager in managers - rec.requester_id:
+                rec.activity_schedule(
+                    "mail.mail_activity_data_todo",
+                    user_id=manager.id,
+                    summary="Demande d'achat à approuver : %s" % rec.name,
+                )
+
     def action_submit(self):
         for rec in self:
             if not rec.line_ids:
                 raise UserError("Ajoutez au moins une ligne avant de soumettre.")
         self.write({"state": "to_approve"})
+        self._notify_managers()
 
     def action_approve(self):
-        is_manager = self.env.user.has_group(
-            "purchase_request.group_purchase_request_manager")
+        is_manager = self.env.user.has_group(MANAGER_GROUP)
         for rec in self:
             if rec.total > APPROVAL_THRESHOLD and not is_manager:
                 raise UserError(
                     "Les demandes de plus de %s nécessitent l'approbation d'un manager."
                     % APPROVAL_THRESHOLD)
         self.write({"state": "approved"})
+        self.activity_unlink(["mail.mail_activity_data_todo"])
 
     def action_reject(self):
         self.write({"state": "rejected"})
+        self.activity_unlink(["mail.mail_activity_data_todo"])
+
+    def action_draft(self):
+        self.write({"state": "draft"})
 
     def action_create_po(self):
         self.ensure_one()

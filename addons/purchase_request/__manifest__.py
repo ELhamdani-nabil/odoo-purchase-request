@@ -3,6 +3,8 @@
     "version": "1.0",
     "category": "Purchase",
     "summary": "Demandes d'achat avec workflow d'approbation",
+    "author": "ELhamdani Nabil",
+    "website": "https://github.com/ELhamdani-nabil/odoo-purchase-request",
     "depends": ["purchase", "hr"],
     "data": [
         "security/security.xml",

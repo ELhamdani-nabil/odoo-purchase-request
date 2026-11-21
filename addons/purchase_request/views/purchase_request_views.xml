@@ -14,6 +14,36 @@
         </field>
     </record>
 
+    <record id="purchase_request_view_search" model="ir.ui.view">
+        <field name="name">purchase.request.search</field>
+        <field name="model">purchase.request</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="requester_id"/>
+                <field name="vendor_id"/>
+                <filter name="my_requests" string="Mes demandes"
+                        domain="[('requester_id', '=', uid)]"/>
+                <separator/>
+                <filter name="filter_draft" string="Brouillon"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_to_approve" string="À approuver"
+                        domain="[('state', '=', 'to_approve')]"/>
+                <filter name="filter_approved" string="Approuvées"
+                        domain="[('state', '=', 'approved')]"/>
+                <filter name="filter_rejected" string="Refusées"
+                        domain="[('state', '=', 'rejected')]"/>
+                <separator/>
+                <filter name="group_state" string="Statut"
+                        context="{'group_by': 'state'}"/>
+                <filter name="group_requester" string="Demandeur"
+                        context="{'group_by': 'requester_id'}"/>
+                <filter name="group_vendor" string="Fournisseur"
+                        context="{'group_by': 'vendor_id'}"/>
+            </search>
+        </field>
+    </record>
+
     <record id="purchase_request_view_form" model="ir.ui.view">
         <field name="name">purchase.request.form</field>
         <field name="model">purchase.request</field>
@@ -26,6 +56,9 @@
                             class="btn-primary" invisible="state != 'to_approve'"/>
                     <button name="action_reject" type="object" string="Refuser"
                             invisible="state != 'to_approve'"/>
+                    <button name="action_draft" type="object"
+                            string="Remettre en brouillon"
+                            invisible="state != 'rejected'"/>
                     <button name="action_create_po" type="object"
                             string="Créer le bon de commande" class="btn-primary"
                             invisible="state != 'approved'"/>

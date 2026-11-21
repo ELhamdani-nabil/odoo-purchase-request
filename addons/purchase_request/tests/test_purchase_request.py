@@ -56,6 +56,13 @@ class TestPurchaseRequest(TransactionCase):
         req.action_reject()
         self.assertEqual(req.state, "rejected")
 
+    def test_reset_to_draft_after_reject(self):
+        req = self._make_request()
+        req.action_submit()
+        req.action_reject()
+        req.action_draft()
+        self.assertEqual(req.state, "draft")
+
     def test_create_po_requires_vendor(self):
         req = self._make_request()
         req.vendor_id = False
@@ -75,3 +82,14 @@ class TestPurchaseRequest(TransactionCase):
         with patch.object(users_model, "has_group", return_value=True):
             req.action_approve()
         self.assertEqual(req.state, "approved")
+
+    def test_submit_notifies_managers(self):
+        req = self._make_request()
+        req.action_submit()
+        self.assertTrue(req.activity_ids)
+
+    def test_approve_clears_activities(self):
+        req = self._make_request()
+        req.action_submit()
+        req.action_approve()
+        self.assertFalse(req.activity_ids)
