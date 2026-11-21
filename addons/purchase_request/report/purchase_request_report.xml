@@ -1,0 +1,86 @@
+<odoo>
+    <record id="action_report_purchase_request" model="ir.actions.report">
+        <field name="name">Demande d'achat</field>
+        <field name="model">purchase.request</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">purchase_request.report_purchase_request</field>
+        <field name="report_file">purchase_request.report_purchase_request</field>
+        <field name="print_report_name">'Demande_achat_%s' % object.name</field>
+        <field name="binding_model_id" ref="model_purchase_request"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_purchase_request">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2>Demande d'achat <span t-field="o.name"/></h2>
+
+                        <div class="row mt-4 mb-4">
+                            <div class="col-6">
+                                <strong>Demandeur :</strong>
+                                <span t-field="o.requester_id"/><br/>
+                                <strong>Département :</strong>
+                                <span t-field="o.department_id"/><br/>
+                                <strong>Date :</strong>
+                                <span t-field="o.request_date"/><br/>
+                                <strong>Statut :</strong>
+                                <span t-field="o.state"/>
+                            </div>
+                            <div class="col-6">
+                                <strong>Fournisseur :</strong>
+                                <span t-field="o.vendor_id"/><br/>
+                                <strong>Niveau d'approbation :</strong>
+                                <span t-field="o.approval_level"/><br/>
+                                <t t-if="o.approver_id">
+                                    <strong>Approuvé par :</strong>
+                                    <span t-field="o.approver_id"/><br/>
+                                </t>
+                                <t t-if="o.purchase_order_id">
+                                    <strong>Bon de commande :</strong>
+                                    <span t-field="o.purchase_order_id.name"/>
+                                </t>
+                            </div>
+                        </div>
+
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Produit</th>
+                                    <th class="text-end">Quantité</th>
+                                    <th class="text-end">Prix unitaire</th>
+                                    <th class="text-end">Sous-total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="o.line_ids" t-as="line">
+                                    <td><span t-field="line.product_id"/></td>
+                                    <td class="text-end"><span t-field="line.quantity"/></td>
+                                    <td class="text-end"><span t-field="line.price_unit"/></td>
+                                    <td class="text-end"><span t-field="line.subtotal"/></td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="row">
+                            <div class="col-6 offset-6">
+                                <table class="table table-sm">
+                                    <tr class="border-black">
+                                        <td><strong>Total</strong></td>
+                                        <td class="text-end"><span t-field="o.total"/></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <t t-if="o.description">
+                            <p><strong>Justification :</strong></p>
+                            <p t-field="o.description"/>
+                        </t>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

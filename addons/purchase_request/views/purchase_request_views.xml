@@ -1,19 +1,62 @@
 <odoo>
+    <!-- ===================== LISTE ===================== -->
     <record id="purchase_request_view_list" model="ir.ui.view">
         <field name="name">purchase.request.list</field>
         <field name="model">purchase.request</field>
         <field name="arch" type="xml">
-            <list>
+            <list string="Demandes d'achat" sample="1"
+                  decoration-muted="state == 'draft'"
+                  decoration-info="state == 'to_approve'"
+                  decoration-success="state in ('approved', 'done')"
+                  decoration-danger="state == 'rejected'">
                 <field name="name"/>
-                <field name="requester_id"/>
+                <field name="request_date"/>
+                <field name="requester_id" widget="many2one_avatar_user"/>
+                <field name="department_id" optional="show"/>
                 <field name="vendor_id"/>
+                <field name="priority" widget="priority" optional="hide"/>
+                <field name="approval_level" widget="badge"
+                       decoration-info="approval_level == 'manager'"
+                       decoration-danger="approval_level == 'director'"
+                       optional="show"/>
                 <field name="currency_id" column_invisible="True"/>
-                <field name="total" sum="Total"/>
-                <field name="state" widget="badge"/>
+                <field name="total" widget="monetary" sum="Total"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'to_approve'"
+                       decoration-success="state in ('approved', 'done')"
+                       decoration-danger="state == 'rejected'"/>
+                <field name="activity_ids" widget="list_activity" optional="show"/>
             </list>
         </field>
     </record>
 
+    <!-- ===================== KANBAN ===================== -->
+    <record id="purchase_request_view_kanban" model="ir.ui.view">
+        <field name="name">purchase.request.kanban</field>
+        <field name="model">purchase.request</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" records_draggable="false"
+                    quick_create="false" sample="1">
+                <field name="currency_id"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <field name="name" class="fw-bold fs-5"/>
+                            <field name="priority" widget="priority"/>
+                        </div>
+                        <field name="vendor_id" class="text-muted"/>
+                        <field name="department_id" class="text-muted small"/>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <field name="total" widget="monetary" class="fw-bold"/>
+                            <field name="requester_id" widget="many2one_avatar_user"/>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ===================== RECHERCHE ===================== -->
     <record id="purchase_request_view_search" model="ir.ui.view">
         <field name="name">purchase.request.search</field>
         <field name="model">purchase.request</field>
@@ -21,6 +64,7 @@
             <search>
                 <field name="name"/>
                 <field name="requester_id"/>
+                <field name="department_id"/>
                 <field name="vendor_id"/>
                 <filter name="my_requests" string="Mes demandes"
                         domain="[('requester_id', '=', uid)]"/>
@@ -34,21 +78,33 @@
                 <filter name="filter_rejected" string="Refusées"
                         domain="[('state', '=', 'rejected')]"/>
                 <separator/>
+                <filter name="filter_committed" string="Dépenses engagées"
+                        domain="[('state', 'in', ['approved', 'done'])]"/>
+                <filter name="filter_priority" string="Priorité haute ou urgente"
+                        domain="[('priority', 'in', ['1', '2'])]"/>
+                <separator/>
                 <filter name="group_state" string="Statut"
                         context="{'group_by': 'state'}"/>
                 <filter name="group_requester" string="Demandeur"
                         context="{'group_by': 'requester_id'}"/>
+                <filter name="group_department" string="Département"
+                        context="{'group_by': 'department_id'}"/>
                 <filter name="group_vendor" string="Fournisseur"
                         context="{'group_by': 'vendor_id'}"/>
+                <filter name="group_level" string="Niveau d'approbation"
+                        context="{'group_by': 'approval_level'}"/>
+                <filter name="group_month" string="Mois"
+                        context="{'group_by': 'request_date:month'}"/>
             </search>
         </field>
     </record>
 
+    <!-- ===================== FORMULAIRE ===================== -->
     <record id="purchase_request_view_form" model="ir.ui.view">
         <field name="name">purchase.request.form</field>
         <field name="model">purchase.request</field>
         <field name="arch" type="xml">
-            <form>
+            <form string="Demande d'achat">
                 <header>
                     <button name="action_submit" type="object" string="Soumettre"
                             class="btn-primary" invisible="state != 'draft'"/>
@@ -61,27 +117,63 @@
                             invisible="state != 'rejected'"/>
                     <button name="action_create_po" type="object"
                             string="Créer le bon de commande" class="btn-primary"
-                            invisible="state != 'approved'"/>
+                            invisible="state != 'approved'"
+                            groups="purchase_request.group_purchase_request_manager"/>
+                    <button name="%(action_report_purchase_request)d" type="action"
+                            string="Imprimer" invisible="state == 'draft'"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,to_approve,approved,done"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_purchase_order" type="object"
+                                class="oe_stat_button" icon="fa-shopping-cart"
+                                invisible="not purchase_order_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Bon de commande</span>
+                            </div>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Refusée"
+                            bg_color="text-bg-danger"
+                            invisible="state != 'rejected'"/>
+                    <widget name="web_ribbon" title="Commande créée"
+                            bg_color="text-bg-success"
+                            invisible="state != 'done'"/>
+
+                    <div class="alert alert-warning" role="alert"
+                         invisible="state != 'to_approve' or approval_level == 'user'">
+                        Niveau d'approbation requis :
+                        <strong><field name="approval_level"/></strong>
+                    </div>
+
                     <div class="oe_title">
-                        <h1><field name="name"/></h1>
+                        <h1 class="d-flex">
+                            <field name="name"/>
+                            <field name="priority" widget="priority" class="ms-3"/>
+                        </h1>
                     </div>
                     <group>
                         <group>
-                            <field name="requester_id"/>
-                            <field name="vendor_id"/>
+                            <field name="requester_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="department_id"/>
+                            <field name="vendor_id"
+                                   readonly="state not in ('draft', 'approved')"/>
+                            <field name="request_date"
+                                   readonly="state != 'draft'"/>
                         </group>
                         <group>
                             <field name="currency_id" invisible="1"/>
-                            <field name="total"/>
-                            <field name="purchase_order_id" invisible="not purchase_order_id"/>
+                            <field name="total" widget="monetary"
+                                   class="fs-4 fw-bold"/>
+                            <field name="approval_level"/>
+                            <field name="approver_id" invisible="not approver_id"/>
+                            <field name="approval_date" invisible="not approval_date"/>
                         </group>
                     </group>
                     <notebook>
-                        <page string="Lignes">
+                        <page string="Lignes" name="lines">
                             <field name="line_ids" readonly="state != 'draft'">
                                 <list editable="bottom">
                                     <field name="product_id"/>
@@ -91,6 +183,11 @@
                                 </list>
                             </field>
                         </page>
+                        <page string="Justification" name="justification">
+                            <field name="description"
+                                   readonly="state != 'draft'"
+                                   placeholder="Pourquoi cet achat est-il nécessaire ?"/>
+                        </page>
                     </notebook>
                 </sheet>
                 <chatter/>
@@ -98,14 +195,188 @@
         </field>
     </record>
 
+    <!-- ===================== ANALYSE : GRAPHIQUES ===================== -->
+    <record id="purchase_request_view_graph_vendor" model="ir.ui.view">
+        <field name="name">purchase.request.graph.vendor</field>
+        <field name="model">purchase.request</field>
+        <field name="arch" type="xml">
+            <graph string="Dépenses par fournisseur" type="bar" sample="1">
+                <field name="vendor_id"/>
+                <field name="total" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="purchase_request_view_graph_month" model="ir.ui.view">
+        <field name="name">purchase.request.graph.month</field>
+        <field name="model">purchase.request</field>
+        <field name="arch" type="xml">
+            <graph string="Évolution mensuelle" type="line" sample="1">
+                <field name="request_date" interval="month"/>
+                <field name="total" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="purchase_request_view_graph_department" model="ir.ui.view">
+        <field name="name">purchase.request.graph.department</field>
+        <field name="model">purchase.request</field>
+        <field name="arch" type="xml">
+            <graph string="Dépenses par département" type="pie" sample="1">
+                <field name="department_id"/>
+                <field name="total" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ===================== ANALYSE : PIVOTS ===================== -->
+    <record id="purchase_request_view_pivot_vendor" model="ir.ui.view">
+        <field name="name">purchase.request.pivot.vendor</field>
+        <field name="model">purchase.request</field>
+        <field name="arch" type="xml">
+            <pivot string="Fournisseur par mois" sample="1">
+                <field name="vendor_id" type="row"/>
+                <field name="request_date" interval="month" type="col"/>
+                <field name="total" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="purchase_request_view_pivot_department" model="ir.ui.view">
+        <field name="name">purchase.request.pivot.department</field>
+        <field name="model">purchase.request</field>
+        <field name="arch" type="xml">
+            <pivot string="Département par fournisseur" sample="1">
+                <field name="department_id" type="row"/>
+                <field name="vendor_id" type="col"/>
+                <field name="total" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- ===================== ACTIONS ===================== -->
     <record id="purchase_request_action" model="ir.actions.act_window">
         <field name="name">Demandes d'achat</field>
         <field name="res_model">purchase.request</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Créez votre première demande d'achat
+            </p>
+            <p>
+                Soumettez une demande, faites-la approuver, puis
+                transformez-la en bon de commande.
+            </p>
+        </field>
     </record>
 
-    <menuitem id="menu_purchase_request_root"
+    <record id="purchase_request_to_approve_action" model="ir.actions.act_window">
+        <field name="name">À approuver</field>
+        <field name="res_model">purchase.request</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '=', 'to_approve')]</field>
+    </record>
+
+    <!-- Analyse par fournisseur -->
+    <record id="purchase_request_analysis_vendor_action" model="ir.actions.act_window">
+        <field name="name">Dépenses par fournisseur</field>
+        <field name="res_model">purchase.request</field>
+        <field name="view_mode">graph,pivot,list</field>
+        <field name="context">{'search_default_filter_committed': 1}</field>
+    </record>
+    <record id="purchase_request_analysis_vendor_action_graph" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">graph</field>
+        <field name="view_id" ref="purchase_request_view_graph_vendor"/>
+        <field name="act_window_id" ref="purchase_request_analysis_vendor_action"/>
+    </record>
+    <record id="purchase_request_analysis_vendor_action_pivot" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">pivot</field>
+        <field name="view_id" ref="purchase_request_view_pivot_vendor"/>
+        <field name="act_window_id" ref="purchase_request_analysis_vendor_action"/>
+    </record>
+
+    <!-- Évolution mensuelle -->
+    <record id="purchase_request_analysis_month_action" model="ir.actions.act_window">
+        <field name="name">Évolution mensuelle</field>
+        <field name="res_model">purchase.request</field>
+        <field name="view_mode">graph,pivot,list</field>
+        <field name="context">{'search_default_filter_committed': 1}</field>
+    </record>
+    <record id="purchase_request_analysis_month_action_graph" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">graph</field>
+        <field name="view_id" ref="purchase_request_view_graph_month"/>
+        <field name="act_window_id" ref="purchase_request_analysis_month_action"/>
+    </record>
+    <record id="purchase_request_analysis_month_action_pivot" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">pivot</field>
+        <field name="view_id" ref="purchase_request_view_pivot_vendor"/>
+        <field name="act_window_id" ref="purchase_request_analysis_month_action"/>
+    </record>
+
+    <!-- Analyse par département -->
+    <record id="purchase_request_analysis_department_action" model="ir.actions.act_window">
+        <field name="name">Dépenses par département</field>
+        <field name="res_model">purchase.request</field>
+        <field name="view_mode">graph,pivot,list</field>
+        <field name="context">{'search_default_filter_committed': 1}</field>
+    </record>
+    <record id="purchase_request_analysis_department_action_graph" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">graph</field>
+        <field name="view_id" ref="purchase_request_view_graph_department"/>
+        <field name="act_window_id" ref="purchase_request_analysis_department_action"/>
+    </record>
+    <record id="purchase_request_analysis_department_action_pivot" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">pivot</field>
+        <field name="view_id" ref="purchase_request_view_pivot_department"/>
+        <field name="act_window_id" ref="purchase_request_analysis_department_action"/>
+    </record>
+
+    <!-- ===================== MENUS ===================== -->
+    <menuitem id="menu_purchase_request_app"
               name="Demandes d'achat"
+              groups="purchase_request.group_purchase_request_user"
+              sequence="10"/>
+
+    <menuitem id="menu_purchase_request_list"
+              name="Demandes"
+              parent="menu_purchase_request_app"
               action="purchase_request_action"
               sequence="10"/>
+
+    <menuitem id="menu_purchase_request_to_approve"
+              name="À approuver"
+              parent="menu_purchase_request_app"
+              action="purchase_request_to_approve_action"
+              groups="purchase_request.group_purchase_request_manager"
+              sequence="20"/>
+
+    <menuitem id="menu_purchase_request_analysis"
+              name="Analyse"
+              parent="menu_purchase_request_app"
+              groups="purchase_request.group_purchase_request_manager"
+              sequence="30"/>
+
+    <menuitem id="menu_purchase_request_analysis_vendor"
+              name="Par fournisseur"
+              parent="menu_purchase_request_analysis"
+              action="purchase_request_analysis_vendor_action"
+              sequence="10"/>
+
+    <menuitem id="menu_purchase_request_analysis_month"
+              name="Évolution mensuelle"
+              parent="menu_purchase_request_analysis"
+              action="purchase_request_analysis_month_action"
+              sequence="20"/>
+
+    <menuitem id="menu_purchase_request_analysis_department"
+              name="Par département"
+              parent="menu_purchase_request_analysis"
+              action="purchase_request_analysis_department_action"
+              sequence="30"/>
 </odoo>
